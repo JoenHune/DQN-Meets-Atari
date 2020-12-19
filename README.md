@@ -11,7 +11,7 @@ conda activate atari
 brew install ffmpeg
 
 pip install tensorflow-cpu==2.2.0 -i https://pypi.douban.com/simple/ \
-    gym 'gym[atari]' \
+    atari_py gym 'gym[atari]' \
     PyOpenGL PyOpenGL_accelerate pyglet==1.5.11 \
     numpy 
 ```
