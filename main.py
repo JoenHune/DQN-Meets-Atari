@@ -10,18 +10,23 @@ import random
 
 DEFAULT_GPU_LIST = [0, 1, 2]
 
+import sys
+GIVEN_GPU = [eval(sys.argv[1])] if len(sys.argv) > 1 else DEFAULT_GPU_LIST
+
+
 def get_strategy(gpu_visible=None):
     gpu_total = tf2.config.experimental.list_physical_devices(device_type="GPU")
     gpu_candidates = []
 
     if gpu_visible is None:
-        gpu_visible = DEFAULT_GPU_LIST
+        gpu_visible = GIVEN_GPU
 
     for gpu_id in gpu_visible:
         if 0 <= gpu_id < len(gpu_total):
             gpu_candidates.append(gpu_total[gpu_id])
 
     tf2.config.experimental.set_visible_devices(devices=gpu_candidates, device_type="GPU")
+    print("gpu_total :", gpu_total, "| gpu_candidates :", gpu_candidates)
 
     strategy = tf2.distribute.OneDeviceStrategy(device="/cpu:0")
     if len(gpu_candidates) == 1:
@@ -87,11 +92,11 @@ class DQNetwork:
         """Build the neural net model"""
         with self.strategy.scope():
             model = Sequential()
-            model.add(Conv2D(32, (8, 4), activation='elu', input_shape=(105, 80, 4)))
-            model.add(Conv2D(64, (3, 2), activation='elu'))
-            model.add(Conv2D(64, (3, 2), activation='elu'))
+            model.add(Conv2D(32, (8, 4), activation='relu', input_shape=(105, 80, 4)))
+            model.add(Conv2D(64, (3, 2), activation='relu'))
+            model.add(Conv2D(64, (3, 2), activation='relu'))
             model.add(Flatten())
-            model.add(Dense(512, activation='elu', kernel_initializer='glorot_uniform'))
+            model.add(Dense(512, activation='relu', kernel_initializer='glorot_uniform'))
             model.add(Dense(self.action_size, activation='softmax'))
             model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
         return model
@@ -135,8 +140,9 @@ class DQNetwork:
         dones_mb = np.array([each[4] for each in minibatch])
 
         # Get our predictions for our states and our next states
-        target_qs = self.model.predict(states_mb)
-        predicted_next_qs = self.model.predict(next_states_mb)
+        with self.strategy.scope():
+            target_qs = self.model.predict(states_mb)
+            predicted_next_qs = self.model.predict(next_states_mb)
 
         # Create an empty targets list to hold our Q-values
         target_Qs_batch = []
@@ -164,11 +170,11 @@ class DQNetwork:
 
 
 env = gym.make('Pong-v4')
-env = gym.wrappers.Monitor(env, './videos/', force=True,
+env._max_episode_steps = 100000 # 大约半小时
+env = gym.wrappers.Monitor(env, './videos-{}/'.format(GIVEN_GPU[0]), force=True,
                            video_callable=lambda episode_id: True)  # Save each episode to video
 agent = DQNetwork(env)
 episodes = 50
-steps = 50000
 decay_step = 0
 
 for episode in range(episodes):
@@ -178,7 +184,7 @@ for episode in range(episodes):
     state = agent.env.reset()
     state = agent.append_to_stack(state, reset=True)
 
-    for step in range(steps):
+    while True:
         decay_step += 1
 
         # 2. Select an action to take based on exploration/exploitation
@@ -200,7 +206,7 @@ for episode in range(episodes):
             agent.remember(state, action, reward, next_state, done)
 
             # Save our model
-            agent.model.save_weights("model-ep-{}.h5".format(episode))
+            agent.model.save_weights("model-{}-ep-{}.h5".format(GIVEN_GPU[0], episode))
 
             # Print logging info
             print("Game ended at episode {}/{}, total rewards: {}, explore_prob: {}".format(episode, episodes,

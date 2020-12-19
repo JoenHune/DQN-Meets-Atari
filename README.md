@@ -24,9 +24,11 @@ conda activate atari
 
 sudo apt install ffmpeg
 
-pip install tensorflow-cpu==2.2.0 -i https://pypi.douban.com/simple/ \
-    gym 'gym[atari]' \
-    PyOpenGL PyOpenGL_accelerate pyglet==1.5.11 \
+conda install cudatoolkit=10.1 cudnn=7.6.5
+
+pip install tensorflow==2.2.0 -i https://pypi.douban.com/simple/ \
+    atari_py gym 'gym[atari]' \
+    PyOpenGL PyOpenGL_accelerate pyglet \
     numpy 
 ```
 
